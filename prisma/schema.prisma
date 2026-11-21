@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ModelType {
+  TEXT
+  MULTIMODAL
+  IMAGE
+}
+
+model Lab {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  models    Model[]
+}
+
+model Provider {
+  id     String          @id @default(cuid())
+  slug   String          @unique
+  name   String
+  models ModelProvider[]
+}
+
+model Model {
+  id               String           @id @default(cuid())
+  slug             String           @unique // e.g. "openai/gpt-4o"
+  name             String
+  description      String           @default("")
+  labId            String
+  lab              Lab              @relation(fields: [labId], references: [id], onDelete: Cascade)
+  type             ModelType
+  inputModalities  String[]
+  outputModalities String[]
+  capabilities     String[]
+  contextLength    Int
+  maxOutputTokens  Int?
+  inputPrice       Float // USD per 1M tokens
+  outputPrice      Float // USD per 1M tokens
+  isFree           Boolean          @default(false)
+  releasedAt       DateTime
+  providers        ModelProvider[]
+  scores           BenchmarkScore[]
+
+  @@index([labId])
+  @@index([type])
+  @@index([releasedAt])
+  @@index([inputPrice])
+  @@index([outputPrice])
+  @@index([contextLength])
+  @@index([capabilities], type: Gin)
+}
+
+// Which provider serves which model, with provider-specific pricing
+model ModelProvider {
+  modelId       String
+  providerId    String
+  model         Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  provider      Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  inputPrice    Float
+  outputPrice   Float
+  contextLength Int?
+  quantization  String?
+  uptime        Float? // percent, 0-100
+
+  @@id([modelId, providerId])
+  @@index([providerId])
+}
+
+model Benchmark {
+  id          String           @id @default(cuid())
+  slug        String           @unique
+  name        String
+  category    String
+  description String           @default("")
+  unit        String           @default("%")
+  scores      BenchmarkScore[]
+}
+
+model BenchmarkScore {
+  modelId     String
+  benchmarkId String
+  model       Model     @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  benchmark   Benchmark @relation(fields: [benchmarkId], references: [id], onDelete: Cascade)
+  score       Float
+  source      String    @default("synthetic") // real benchmark data can be imported later
+
+  @@id([modelId, benchmarkId])
+  @@index([benchmarkId, score])
+}
