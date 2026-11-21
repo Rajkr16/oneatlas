@@ -109,6 +109,7 @@ async function main() {
   const rows: any[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
 
   for (const m of data) {
+    if (m.id.startsWith("~")) continue;
     const [labSlug] = m.id.split("/");
     if (!labSlug || !m.id.includes("/")) continue;
     const input = perMillion(m.pricing?.prompt);
@@ -148,6 +149,7 @@ async function main() {
   console.log(`Normalised ${rows.length} models from ${labNames.size} labs`);
 
   // Labs
+  await prisma.lab.deleteMany({ where: { slug: { startsWith: "~" } } });
   const labId = new Map<string, string>();
   for (const [slug, name] of labNames) {
     const lab = await prisma.lab.upsert({ where: { slug }, update: { name }, create: { slug, name } });
